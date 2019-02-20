@@ -1,6 +1,6 @@
 {
   "name": "ifunnychatbotapi",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "description": "API for an iFunny chat bot",
   "main": "index.js",
   "author": "EatusMcFetus",
