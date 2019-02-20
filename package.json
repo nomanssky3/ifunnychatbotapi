@@ -1,0 +1,12 @@
+{
+  "name": "ifunnychatbotapi",
+  "version": "0.3.3",
+  "description": "API for an iFunny chat bot",
+  "main": "index.js",
+  "author": "EatusMcFetus",
+  "license": "WTFPL",
+  "dependencies": {
+    "request": "^2.88.0",
+    "ws": "^6.1.4"
+  }
+}
