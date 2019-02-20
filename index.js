@@ -3,9 +3,38 @@ const request = require('request');
 const fs = require('fs');
 const WebSocket = require('ws');
 
-module.exports = config => {
-    const connectUrl = 'https://ws-us-1.sendbird.com/?p=Android&pv=26&sv=3.0.38&ai=' + config.appId + '&user_id=' + config.userId + '&access_token=' + config.accessToken;
+const getUserInformation = async bearerToken => {
+    return new Promise((resolve, reject) => {
+        const url = config.apiUrl + 'account';
+        request.get({
+            url: url,
+            headers: {
+                Authorization: 'Bearer ' + bearerToken,
+                'User-Agent': config.userAgent
+            }
+        }, (error, _, body) => {
+            if (error) throw reject(error);
+            const data = JSON.parse(body);
+            const userId = data.id;
+            const accessToken = data.messenger_token;
+            const username = data.nick;
+            return resolve({
+                userId: userId,
+                accessToken: accessToken,
+                username: username
+            });
+        });
+    });
+}
+
+module.exports = async config => {
+
+    const userInformation = await getUserInformation(config.bearerToken);
+
+    const connectUrl = 'https://ws-us-1.sendbird.com/?p=Android&pv=26&sv=3.0.38&ai=' + config.appId + '&user_id=' + userInformation.userId + '&access_token=' + userInformation.accessToken;
     const ws = new WebSocket(connectUrl);
+
+    let sessionKey;
 
     class Api extends EventEmitter {
         uploadFile(filePath, channelUrl) {
@@ -17,7 +46,7 @@ module.exports = config => {
                         channel_url: channelUrl
                     },
                     headers: {
-                        'Session-Key': config.sessionKey
+                        'Session-Key': sessionKey
                     }
                 }, (error, _, body) => {
                     if (error) throw reject(error);
@@ -91,7 +120,7 @@ module.exports = config => {
             request.put({
                 url: url,
                 headers: {
-                    'Session-Key': config.sessionKey
+                    'Session-Key': sessionKey
                 },
                 json: {
                     user_id: config.userId
@@ -122,7 +151,17 @@ module.exports = config => {
         }
     }
 
-    ws.on('open', () => API.emit('ready'));
+    ws.on('open', () => {
+        const accessTokenListener = message => {
+            if (message.startsWith('LOGI')) {
+                const data = JSON.parse(message.substr(4));
+                sessionKey = data.key;
+                ws.removeEventListener('message', accessTokenListener);
+            }
+        }
+        ws.addEventListener('message', accessTokenListener);
+        API.emit('ready');
+    });
 
     ws.on('message', message => {
         if (message.startsWith('MESG')) {
@@ -138,7 +177,7 @@ module.exports = config => {
             let invited = false;
             if (!data.data.invitees) return;
             for (let i = 0; i < data.data.invitees.length; i++) {
-                if (data.data.invitees[i].nickname.toLowerCase() == config.userName.toLowerCase()) {
+                if (data.data.invitees[i].nickname.toLowerCase() == userInformation.username.toLowerCase()) {
                     let invited = true;
                 }
             }
